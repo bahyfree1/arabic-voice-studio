@@ -1,0 +1,6 @@
+venv/
+outputs/
+__pycache__/
+*.pyc
+voices/*.wav
+!voices/female-ar.wav
