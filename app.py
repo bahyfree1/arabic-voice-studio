@@ -42,11 +42,12 @@ ICE_AGES = {"طفل (٦-٩ سنين)": "child", "مراهق (١٣-١٥ سنة)":
             "شاب": "young adult", "كبير": "middle-aged"}
 
 
-def do_synthesize(engine_key, voice_name, text, dialect, speed,
+def do_synthesize(engine_key, voice_name, text, dialect, speed, seed,
                   ice_gender, ice_age, profile, progress=gr.Progress()):
     if not text.strip():
         raise gr.Error("اكتب النص الأول")
     progress(0.1, desc="بيتم التوليد...")
+    seed_val = None if seed is None or int(seed) < 0 else int(seed)
     if engine_key in engines.TEXT_ONLY_ENGINES:
         instruct = engines.build_ice_instruct(ICE_GENDERS[ice_gender], ICE_AGES[ice_age])
         out = engines.synthesize(engine_key, None, text, dialect, speed, instruct=instruct)
@@ -56,7 +57,7 @@ def do_synthesize(engine_key, voice_name, text, dialect, speed,
             raise gr.Error("مفيش أصوات في مجلد voices — ضيف ملف wav وملف txt بنفس الاسم")
         if voice_name not in voices:
             raise gr.Error(f"الصوت '{voice_name}' مش موجود، حدّث القايمة")
-        out = engines.synthesize(engine_key, voices[voice_name], text, dialect, speed)
+        out = engines.synthesize(engine_key, voices[voice_name], text, dialect, speed, seed=seed_val)
         import voice_profiles
         voice_profiles.apply_profile(out, profile)
     progress(1.0, desc="خلص")
@@ -85,6 +86,8 @@ with gr.Blocks(title="استوديو الصوت العربي") as demo:
         dialect = gr.Dropdown(choices=["MSA", "EGY", "UNK"], value="MSA",
                               label="اللهجة (Habibi)")
         speed = gr.Slider(0.5, 2.0, value=1.0, step=0.05, label="السرعة")
+        seed = gr.Number(value=-1, precision=0,
+                         label="البذرة (SILMA) — -1 = عشوائي كل مرة، رقم ثابت = نفس النتيجة")
 
     with gr.Row():
         ice_gender = gr.Dropdown(choices=list(ICE_GENDERS.keys()), value="بنت",
@@ -94,7 +97,7 @@ with gr.Blocks(title="استوديو الصوت العربي") as demo:
         import voice_profiles
         profile = gr.Dropdown(choices=list(voice_profiles.PROFILES.keys()),
                               value="أساسي (من غير تحويل)",
-                              label="الشخصية/العمر (تحويل صوتي لأي صوت مسجل)")
+                              label="الشخصية/العمر (تجريبي — تحويل صوتي، الجودة أقل من الاستنساخ)")
 
     raw = gr.Textbox(lines=6, label="النص الخام",
                      placeholder="اكتب أو الصق نص الدرس هنا...")
@@ -106,7 +109,7 @@ with gr.Blocks(title="استوديو الصوت العربي") as demo:
     refresh.click(lambda: gr.update(choices=ui_voices()), outputs=voice)
     tashkeel_btn.click(do_tashkeel, inputs=raw, outputs=reviewed)
     gen_btn.click(do_synthesize,
-                  inputs=[engine, voice, reviewed, dialect, speed, ice_gender, ice_age, profile],
+                  inputs=[engine, voice, reviewed, dialect, speed, seed, ice_gender, ice_age, profile],
                   outputs=audio)
 
     gr.Markdown(
