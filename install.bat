@@ -28,7 +28,7 @@ if errorlevel 1 (
 )
 
 echo Installing the TTS engines and the app...
-pip install habibi-tts gradio mishkal soundfile transformers torchaudio pydub
+pip install habibi-tts gradio mishkal soundfile transformers torchaudio pydub pyworld
 if errorlevel 1 ( echo Install failed - send a photo of this window & pause & exit /b 1 )
 
 echo.
