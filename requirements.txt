@@ -4,3 +4,5 @@ soundfile
 # The TTS engine and torch are installed by install.bat:
 #   torch torchaudio (CUDA build) + habibi-tts
 # Optional second engine: pip install silma-tts (easiest inside WSL on Windows)
+pyworld
+imageio-ffmpeg
