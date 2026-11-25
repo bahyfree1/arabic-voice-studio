@@ -43,7 +43,7 @@ ICE_AGES = {"طفل (٦-٩ سنين)": "child", "مراهق (١٣-١٥ سنة)":
 
 
 def do_synthesize(engine_key, voice_name, text, dialect, speed,
-                  ice_gender, ice_age, progress=gr.Progress()):
+                  ice_gender, ice_age, profile, progress=gr.Progress()):
     if not text.strip():
         raise gr.Error("اكتب النص الأول")
     progress(0.1, desc="بيتم التوليد...")
@@ -57,6 +57,8 @@ def do_synthesize(engine_key, voice_name, text, dialect, speed,
         if voice_name not in voices:
             raise gr.Error(f"الصوت '{voice_name}' مش موجود، حدّث القايمة")
         out = engines.synthesize(engine_key, voices[voice_name], text, dialect, speed)
+        import voice_profiles
+        voice_profiles.apply_profile(out, profile)
     progress(1.0, desc="خلص")
     return out
 
@@ -89,6 +91,10 @@ with gr.Blocks(title="استوديو الصوت العربي") as demo:
                                  label="النوع (ICE-012)")
         ice_age = gr.Dropdown(choices=list(ICE_AGES.keys()), value="طفل (٦-٩ سنين)",
                               label="العمر (ICE-012)")
+        import voice_profiles
+        profile = gr.Dropdown(choices=list(voice_profiles.PROFILES.keys()),
+                              value="أساسي (من غير تحويل)",
+                              label="الشخصية/العمر (تحويل صوتي لأي صوت مسجل)")
 
     raw = gr.Textbox(lines=6, label="النص الخام",
                      placeholder="اكتب أو الصق نص الدرس هنا...")
@@ -100,7 +106,7 @@ with gr.Blocks(title="استوديو الصوت العربي") as demo:
     refresh.click(lambda: gr.update(choices=ui_voices()), outputs=voice)
     tashkeel_btn.click(do_tashkeel, inputs=raw, outputs=reviewed)
     gen_btn.click(do_synthesize,
-                  inputs=[engine, voice, reviewed, dialect, speed, ice_gender, ice_age],
+                  inputs=[engine, voice, reviewed, dialect, speed, ice_gender, ice_age, profile],
                   outputs=audio)
 
     gr.Markdown(
