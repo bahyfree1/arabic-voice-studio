@@ -50,19 +50,40 @@ def chunk_text(text: str, max_chars: int = 250):
     return chunks
 
 
-def concat_wavs(wav_paths, out_path):
-    """Concatenate mono WAV files of identical format using only the stdlib."""
-    params = None
-    frames = []
+def concat_wavs(wav_paths, out_path, crossfade_s=0.1):
+    """Concatenate WAVs with a short crossfade so chunk joins do not click."""
+    import numpy as np
+    import soundfile as sf
+    data = None
+    sr = None
     for p in wav_paths:
-        with wave.open(str(p), "rb") as w:
-            if params is None:
-                params = w.getparams()
-            frames.append(w.readframes(w.getnframes()))
-    with wave.open(str(out_path), "wb") as w:
-        w.setparams(params)
-        for f in frames:
-            w.writeframes(f)
+        d, s = sf.read(str(p))
+        if data is None:
+            data, sr = d, s
+            continue
+        n = min(int(crossfade_s * sr), len(data), len(d))
+        if n > 0:
+            merged = data[-n:] * np.linspace(1.0, 0.0, n) + d[:n] * np.linspace(0.0, 1.0, n)
+            data = np.concatenate([data[:-n], merged, d[n:]])
+        else:
+            data = np.concatenate([data, d])
+    sf.write(str(out_path), data, sr)
+
+
+def _polish_wav(path):
+    """Fade in the first 15 ms (kills onset clicks/static) and limit peaks to 0.95."""
+    import numpy as np
+    import soundfile as sf
+    p = str(path)
+    d, sr = sf.read(p)
+    if len(d) == 0:
+        return
+    n = min(int(0.015 * sr), len(d))
+    d[:n] = d[:n] * np.linspace(0.0, 1.0, n)
+    peak = float(np.abs(d).max())
+    if peak > 0.95:
+        d = d * (0.95 / peak)
+    sf.write(p, d, sr)
 
 
 def _out_path(voice_name: str) -> Path:
@@ -127,7 +148,8 @@ def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1
     chunks = chunk_text(gen_text)
     if len(chunks) == 1:
         _silma.infer(ref_file=str(ref_wav), ref_text=ref_text,
-                     gen_text=chunks[0], file_wave=str(out_wav), seed=None, speed=speed)
+                     gen_text=chunks[0], file_wave=str(out_wav), seed=None, speed=speed,
+                     nfe_step=16, cross_fade_duration=0.15)
     else:
         chunk_dir = Path(out_wav).parent / (Path(out_wav).stem + "_chunks")
         chunk_dir.mkdir(exist_ok=True)
@@ -135,7 +157,8 @@ def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1
         for i, chunk in enumerate(chunks):
             cf = chunk_dir / f"chunk_{i:03d}.wav"
             _silma.infer(ref_file=str(ref_wav), ref_text=ref_text,
-                         gen_text=chunk, file_wave=str(cf), seed=None, speed=speed)
+                         gen_text=chunk, file_wave=str(cf), seed=None, speed=speed,
+                         nfe_step=16, cross_fade_duration=0.15)
             chunk_files.append(cf)
         concat_wavs(chunk_files, out_wav)
     return out_wav
@@ -220,4 +243,5 @@ def synthesize(engine_key, voice, gen_text, dialect, speed, progress=None, instr
         fn(None, None, gen_text, out, dialect=dialect, speed=speed, instruct=instruct)
     else:
         fn(voice["wav"], voice["txt"], gen_text, out, dialect=dialect, speed=speed)
+    _polish_wav(out)
     return str(out)
