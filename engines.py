@@ -137,7 +137,7 @@ def synthesize_habibi(ref_wav, ref_text, gen_text, out_wav, dialect="MSA", speed
     return out_wav
 
 
-def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1.0):
+def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1.0, seed=None):
     """SILMA Arabic TTS v1 through its documented Python API (lazy import)."""
     from silma_tts.api import SilmaTTS
     global _silma
@@ -145,10 +145,11 @@ def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1
         _silma
     except NameError:
         _silma = SilmaTTS()
+    use_seed = seed if (seed is not None and seed >= 0) else None
     chunks = chunk_text(gen_text)
     if len(chunks) == 1:
         _silma.infer(ref_file=str(ref_wav), ref_text=ref_text,
-                     gen_text=chunks[0], file_wave=str(out_wav), seed=None, speed=speed,
+                     gen_text=chunks[0], file_wave=str(out_wav), seed=use_seed, speed=speed,
                      nfe_step=16, cross_fade_duration=0.15)
     else:
         chunk_dir = Path(out_wav).parent / (Path(out_wav).stem + "_chunks")
@@ -157,7 +158,7 @@ def synthesize_silma(ref_wav, ref_text, gen_text, out_wav, dialect=None, speed=1
         for i, chunk in enumerate(chunks):
             cf = chunk_dir / f"chunk_{i:03d}.wav"
             _silma.infer(ref_file=str(ref_wav), ref_text=ref_text,
-                         gen_text=chunk, file_wave=str(cf), seed=None, speed=speed,
+                         gen_text=chunk, file_wave=str(cf), seed=use_seed, speed=speed,
                          nfe_step=16, cross_fade_duration=0.15)
             chunk_files.append(cf)
         concat_wavs(chunk_files, out_wav)
@@ -232,15 +233,18 @@ if MOCK:
     ENGINES["mock"] = ("MOCK (تجربة بدون موديلات)", synthesize_mock)
 
 
-def synthesize(engine_key, voice, gen_text, dialect, speed, progress=None, instruct=None):
+def synthesize(engine_key, voice, gen_text, dialect, speed, progress=None, instruct=None, seed=None):
     """voice: dict with wav path + transcript (ignored by text-only engines).
     instruct: free-text voice description for text-only engines (e.g. 'female, child').
+    seed: fixed seed for reproducible renders (SILMA); None = random each time.
     Returns the output wav path."""
     label, fn = ENGINES[engine_key]
     name = voice["name"] if voice else (instruct or "ice").replace(", ", "-")
     out = _out_path(name)
     if engine_key in TEXT_ONLY_ENGINES:
         fn(None, None, gen_text, out, dialect=dialect, speed=speed, instruct=instruct)
+    elif engine_key == "silma":
+        fn(voice["wav"], voice["txt"], gen_text, out, dialect=dialect, speed=speed, seed=seed)
     else:
         fn(voice["wav"], voice["txt"], gen_text, out, dialect=dialect, speed=speed)
     _polish_wav(out)
