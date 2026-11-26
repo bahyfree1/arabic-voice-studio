@@ -61,15 +61,21 @@ def auto_tashkeel(text):
     return vocalize(text)
 
 
-def generate(text, voice_name, speed, seed, progress=gr.Progress()):
+def generate(text, voice_name, clone_audio, clone_text, speed, seed, progress=gr.Progress()):
     if not text or not text.strip():
         raise gr.Error("اكتب نص عربي الأول")
     text = text.strip()
     if len(text) > MAX_CHARS:
         raise gr.Error(f"النص طويل - الحد الأقصى {MAX_CHARS} حرف للتجربة")
     voices = list_voices()
-    if voice_name not in voices:
-        raise gr.Error("اختار صوت من القايمة")
+    if clone_audio:
+        if not clone_text or not clone_text.strip():
+            raise gr.Error("اكتب الكلام اللي اتقال في التسجيل بالظبط")
+        ref = {"wav": clone_audio, "txt": clone_text.strip()}
+    else:
+        if voice_name not in voices:
+            raise gr.Error("اختار صوت من القايمة")
+        ref = voices[voice_name]
 
     progress(0.1, desc="بيتشكّل النص...")
     # only vocalize if the text is mostly unvocalized
@@ -78,10 +84,9 @@ def generate(text, voice_name, speed, seed, progress=gr.Progress()):
 
     progress(0.3, desc="بيتولّد الصوت... (أول مرة بتاخد دقايق بسبب تحميل الموديل)")
     tts = get_tts()
-    v = voices[voice_name]
     out = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
     seed_val = None if seed is None or int(seed) < 0 else int(seed)
-    tts.infer(ref_file=v["wav"], ref_text=v["txt"], gen_text=text,
+    tts.infer(ref_file=ref["wav"], ref_text=ref["txt"], gen_text=text,
               file_wave=out, seed=seed_val, speed=float(speed),
               nfe_step=16, cross_fade_duration=0.15,
               normalize_numbers=False, force_tashkeel=False)
@@ -134,13 +139,23 @@ def ui():
         gen = gr.Button("🎧 ولّد الصوت", variant="primary", elem_id="gen-btn")
         audio = gr.Audio(label="النتيجة — اسمع أو حمّل", type="filepath")
 
+        with gr.Accordion("🎤 استنسخ صوت من تسجيل (اختياري)", open=False):
+            clone_audio = gr.Audio(
+                label="ارفع تسجيل صوت واضح (٥-٨ ثواني، من غير مزيكا ولا ضوضاء)",
+                sources=["upload", "microphone"], type="filepath")
+            clone_text = gr.Textbox(
+                lines=2, label="الكلام اللي اتقال في التسجيل بالظبط",
+                placeholder="اكتب نص التسجيل حرفيًا...")
+            gr.Markdown("لو رفعت تسجيل، الأداة هتتكلم بيه بدل الصوت المختار فوق. "
+                        "استخدمه بس مع أصوات عندك حق تستخدمها (صوتك أو بإذن صاحبه).")
+
         with gr.Accordion("خيارات متقدمة", open=False):
             speed = gr.Slider(0.6, 1.6, value=1.0, step=0.05, label="السرعة")
             seed = gr.Number(value=-1, precision=0,
                              label="البذرة — -1 = عشوائي، رقم ثابت = نفس النتيجة")
             gr.Markdown("لتثبيت التشكيل بنفسك: شكّل النص يدويًا قبل اللصق، والأداة هتحترم تشكيلك.")
 
-        gen.click(generate, inputs=[text, voice, speed, seed], outputs=audio)
+        gen.click(generate, inputs=[text, voice, clone_audio, clone_text, speed, seed], outputs=audio)
 
         gr.Markdown(
             "صنع بـ [SILMA TTS](https://github.com/silma-ai/silma-tts) (Apache-2.0) "
