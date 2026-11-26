@@ -37,7 +37,7 @@ def get_tts():
 
 def list_voices():
     voices = {}
-    for wav in [VOICES_DIR / f"{n}.wav" for n in ["female-ar", "child-girl-6", "child-boy-6"]]:
+    for wav in [VOICES_DIR / f"{n}.wav" for n in ["female-ar", "child-girl-10", "child-boy-15"]]:
         txt = wav.with_suffix(".txt")
         if txt.exists():
             voices[wav.stem] = {"wav": str(wav),
@@ -47,8 +47,8 @@ def list_voices():
 
 VOICE_LABELS = {
     "female-ar": "ست (عربية فصحى)",
-    "child-girl-6": "بنت (٦ سنين)",
-    "child-boy-6": "ولد (٧ سنين)",
+    "child-girl-10": "بنت (١٠ سنين)",
+    "child-boy-15": "ولد (١٥ سنة)",
 }
 
 
